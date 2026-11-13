@@ -334,4 +334,3 @@ ISC
 ## Author
 
 Built by **Kapil**, B.Tech CSE student at Uttaranchal Institute of Technology.
-Add your GitHub or LinkedIn link here.
