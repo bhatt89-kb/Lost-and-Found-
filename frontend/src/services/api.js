@@ -35,3 +35,4 @@ export const reportPost = (postId, data) => API.post(`/posts/${postId}/report`, 
 export const fetchReports = () => API.get('/admin/reports');
 export const dismissReport = (reportId) => API.post(`/admin/reports/${reportId}/dismiss`);
 export const adminDeletePost = (postId) => API.delete(`/admin/posts/${postId}`);
+export const updateProfile = (data) => API.put('/auth/profile', data);

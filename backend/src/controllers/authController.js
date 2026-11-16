@@ -4,14 +4,19 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
 const sendEmail = require('../utils/sendEmail');
-
 const JWT_SECRET = require('../config/jwt');
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 const RESET_MINUTES = 60;
 
+const YEARS = ['1st Year', '2nd Year', '3rd Year', '4th Year', 'Postgraduate / Other'];
+
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
+
+// Keep only characters the profile form accepts, so a Google name never blocks a later save
+const cleanName = (name) =>
+  String(name || '').replace(/[^\p{L}\p{M}\s.'-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 60);
 
 exports.register = async (req, res) => {
   try {
@@ -80,12 +85,13 @@ exports.googleLogin = async (req, res) => {
       idToken: credential,
       audience: process.env.GOOGLE_CLIENT_ID,
     });
-    const { sub, email, email_verified } = ticket.getPayload();
+    const { sub, email, email_verified, name } = ticket.getPayload();
 
     if (!email_verified) {
       return res.status(400).json({ error: 'Google email is not verified' });
     }
 
+    const googleName = cleanName(name);
     let user = await User.findOne({ $or: [{ googleId: sub }, { email: email.toLowerCase() }] });
 
     if (!user) {
@@ -95,10 +101,24 @@ exports.googleLogin = async (req, res) => {
       let n = 1;
       while (await User.exists({ studentId })) studentId = `${base}${n++}`;
 
-      user = await User.create({ studentId, email, googleId: sub, authProvider: 'google' });
-    } else if (!user.googleId) {
-      user.googleId = sub; // link Google to an existing account with the same email
-      await user.save();
+      user = await User.create({
+        studentId,
+        email,
+        googleId: sub,
+        authProvider: 'google',
+        fullName: googleName,
+      });
+    } else {
+      let changed = false;
+      if (!user.googleId) {
+        user.googleId = sub; // link Google to an existing account with the same email
+        changed = true;
+      }
+      if (!user.fullName && googleName) {
+        user.fullName = googleName; // fill the name only if the user hasn't set one
+        changed = true;
+      }
+      if (changed) await user.save();
     }
 
     const token = jwt.sign({ userId: user._id, studentId: user.studentId }, JWT_SECRET, { expiresIn: '7d' });
@@ -170,15 +190,65 @@ exports.resetPassword = async (req, res) => {
     res.status(500).json({ error: 'Could not reset password. Please try again.' });
   }
 };
-// Current user's basic info (Protected)
+
+// Current user's info (Protected)
 exports.me = async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId).select('studentId role');
+    const user = await User.findById(req.user.userId).select('studentId email role fullName branch year');
     if (!user) {
       return res.status(401).json({ error: 'Account not found' });
     }
-    res.status(200).json({ studentId: user.studentId, role: user.role });
+    res.status(200).json({
+      studentId: user.studentId,
+      email: user.email,
+      role: user.role,
+      fullName: user.fullName || '',
+      branch: user.branch || '',
+      year: user.year || '',
+    });
   } catch (error) {
     res.status(500).json({ error: 'Failed to load account' });
+  }
+};
+
+// Update profile (Protected)
+exports.updateProfile = async (req, res) => {
+  try {
+    const fullName = String(req.body.fullName || '').trim();
+    const branch = String(req.body.branch || '').trim();
+    const year = String(req.body.year || '').trim();
+
+    if (fullName.length > 60) {
+      return res.status(400).json({ error: 'Name must be 60 characters or less' });
+    }
+    if (fullName && !/^[\p{L}\p{M}\s.'-]+$/u.test(fullName)) {
+      return res.status(400).json({ error: 'Name can only contain letters, spaces, . - and apostrophes' });
+    }
+    if (branch.length > 60) {
+      return res.status(400).json({ error: 'Branch is too long' });
+    }
+    if (year && !YEARS.includes(year)) {
+      return res.status(400).json({ error: 'Invalid year' });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.user.userId,
+      { fullName, branch, year },
+      { new: true, runValidators: true }
+    ).select('studentId email role fullName branch year');
+
+    if (!user) {
+      return res.status(401).json({ error: 'Account not found' });
+    }
+    res.status(200).json({
+      studentId: user.studentId,
+      email: user.email,
+      role: user.role,
+      fullName: user.fullName,
+      branch: user.branch,
+      year: user.year,
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update profile' });
   }
 };

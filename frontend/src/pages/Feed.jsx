@@ -7,6 +7,7 @@ import CreatePostModal from '../components/CreatePostModal';
 import ClaimModal from '../components/ClaimModal';
 import PendingClaimsModal from '../components/PendingClaimsModal';
 import ReportModal from '../components/ReportModal';
+import ProfileModal from '../components/ProfileModal';
 import AuthModal from '../components/AuthModal';
 import { useAuth } from '../context/AuthContext';
 import { PlusIcon, SearchIcon, PinIcon } from '../components/Icons';
@@ -53,6 +54,7 @@ export default function Feed({ onOpenMine, onOpenAdmin }) {
   const [detailPost, setDetailPost] = useState(null);     // detail drawer
   const [deleteTarget, setDeleteTarget] = useState(null); // delete confirmation
   const [reportTarget, setReportTarget] = useState(null); // report modal
+  const [isProfileOpen, setIsProfileOpen] = useState(false); // profile modal
 
   // Search & filter
   const [category, setCategory] = useState('All');
@@ -197,10 +199,16 @@ export default function Feed({ onOpenMine, onOpenAdmin }) {
           <div className="header-right">
             {user ? (
               <>
-                <span className="chip user">
+                <button
+                  type="button"
+                  className="chip user"
+                  onClick={() => setIsProfileOpen(true)}
+                  title="View profile"
+                  style={{ cursor: 'pointer', border: 'none', font: 'inherit' }}
+                >
                   <span className="beacon" />
                   {user.studentId}
-                </span>
+                </button>
                 {isAdmin && (
                   <button onClick={onOpenAdmin} className="btn btn-sm btn-secondary">
                     Admin
@@ -376,6 +384,7 @@ export default function Feed({ onOpenMine, onOpenAdmin }) {
       <CreatePostModal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} onPostCreated={loadPosts} />
       <ClaimModal isOpen={!!selectedPost} post={selectedPost} onClose={() => setSelectedPost(null)} onClaimSubmitted={loadPosts} />
       <ReportModal isOpen={!!reportTarget} post={reportTarget} onClose={() => setReportTarget(null)} />
+      <ProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
       <PendingClaimsModal
         isOpen={!!managePost}
         post={managePost}

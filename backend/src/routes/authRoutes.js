@@ -17,5 +17,6 @@ router.get('/me', auth, authController.me);
 router.post('/google', authController.googleLogin);
 router.post('/forgot-password', forgotLimiter, authController.forgotPassword);
 router.post('/reset-password', authController.resetPassword);
+router.put('/profile', auth, authController.updateProfile); //profile
 
 module.exports = router;
