@@ -42,6 +42,7 @@ export default function Feed({ onOpenMine, onOpenAdmin }) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState('');
 
   // Password reset: read the token from the link and open the login screen automatically
   const [resetToken, setResetToken] = useState(getResetTokenFromUrl);
@@ -90,13 +91,18 @@ export default function Feed({ onOpenMine, onOpenAdmin }) {
   }, [user, refreshPending]);
 
   // Find out if this account is an admin (the server enforces it; this only shows the button)
+  // and load the profile photo for the header
   useEffect(() => {
     if (!user) {
       setIsAdmin(false);
+      setAvatarUrl('');
       return;
     }
     fetchMe()
-      .then(({ data }) => setIsAdmin(data.role === 'admin'))
+      .then(({ data }) => {
+        setIsAdmin(data.role === 'admin');
+        setAvatarUrl(data.avatarUrl || '');
+      })
       .catch(() => setIsAdmin(false));
   }, [user]);
 
@@ -206,7 +212,15 @@ export default function Feed({ onOpenMine, onOpenAdmin }) {
                   title="View profile"
                   style={{ cursor: 'pointer', border: 'none', font: 'inherit' }}
                 >
-                  <span className="beacon" />
+                  {avatarUrl ? (
+                    <img
+                      src={avatarUrl}
+                      alt=""
+                      style={{ width: 22, height: 22, borderRadius: '50%', objectFit: 'cover' }}
+                    />
+                  ) : (
+                    <span className="beacon" />
+                  )}
                   {user.studentId}
                 </button>
                 {isAdmin && (
@@ -384,7 +398,11 @@ export default function Feed({ onOpenMine, onOpenAdmin }) {
       <CreatePostModal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} onPostCreated={loadPosts} />
       <ClaimModal isOpen={!!selectedPost} post={selectedPost} onClose={() => setSelectedPost(null)} onClaimSubmitted={loadPosts} />
       <ReportModal isOpen={!!reportTarget} post={reportTarget} onClose={() => setReportTarget(null)} />
-      <ProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
+      <ProfileModal
+        isOpen={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
+        onAvatarChange={setAvatarUrl}
+      />
       <PendingClaimsModal
         isOpen={!!managePost}
         post={managePost}

@@ -1,11 +1,11 @@
 import React, { useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { ArrowLeftIcon, TrashIcon, UsersIcon } from './Icons';
-import { statusMeta } from './PostCard';
+import { statusMeta, custodyLabel } from './PostCard';
 import { timeAgo, splitLocation, toneFor } from '../utils/time';
 
-// Slide-over detail view — modelled on the Figma "Task Details" screen:
-// Back pill, big title, property table with tags, description text.
+// Slide-over detail view: object word, property table, verification question.
+// No photo and no description are shown.
 export default function PostDetail({ post, onClose, onClaim, onManage, onDelete, onReport }) {
   const { user } = useAuth();
 
@@ -21,10 +21,11 @@ export default function PostDetail({ post, onClose, onClaim, onManage, onDelete,
   const isOwner = user?.studentId === post.finder_id;
   const { building, floor } = splitLocation(post.location_found);
   const status = statusMeta(post.status);
+  const objectWord = post.item_name || post.category || 'Item';
 
   return (
     <div className="overlay right" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <aside className="drawer" role="dialog" aria-modal="true" aria-label={`${post.category} details`}>
+      <aside className="drawer" role="dialog" aria-modal="true" aria-label={`${objectWord} details`}>
         <div className="drawer-top">
           <button type="button" className="back-btn" onClick={onClose}>
             <ArrowLeftIcon size={16} /> Back
@@ -32,24 +33,17 @@ export default function PostDetail({ post, onClose, onClaim, onManage, onDelete,
           <span className="muted-text">Posted {timeAgo(post.createdAt) || 'recently'}</span>
         </div>
 
-        <h2 className="drawer-title">{post.category || 'Item'} found</h2>
-
-        {post.image_url && <img className="drawer-img" src={post.image_url} alt={`${post.category || 'Found item'} photo`} />}
+        <h2 className="drawer-title">{objectWord} found</h2>
 
         <div className="props">
+          <div className="prop"><span>Object</span><span>{objectWord}</span></div>
           <div className="prop"><span>Type</span><span><span className={`tag ${toneFor(post.category)}`}>{post.category || 'Other'}</span></span></div>
           <div className="prop"><span>Status</span><span><span className={`tag ${status.tone}`}>{status.label}</span></span></div>
           <div className="prop"><span>Building</span><span>{building}</span></div>
           {floor && <div className="prop"><span>Area</span><span>{floor}</span></div>}
+          <div className="prop"><span>Kept at</span><span>{custodyLabel(post.custody)}</span></div>
           <div className="prop"><span>Found by</span><span>{post.finder_id || 'Anonymous'}</span></div>
         </div>
-
-        {post.description && (
-          <div className="drawer-section">
-            <h3>Description</h3>
-            <p>{post.description}</p>
-          </div>
-        )}
 
         <div className="drawer-section">
           <h3>Verification question</h3>

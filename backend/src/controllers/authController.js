@@ -4,6 +4,8 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
 const sendEmail = require('../utils/sendEmail');
+const { uploadAvatarImage, deleteImage } = require('../utils/cloudinary');
+
 const JWT_SECRET = require('../config/jwt');
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -191,21 +193,26 @@ exports.resetPassword = async (req, res) => {
   }
 };
 
+const PROFILE_FIELDS = 'studentId email role fullName branch year avatarUrl';
+
+const profileJson = (user) => ({
+  studentId: user.studentId,
+  email: user.email,
+  role: user.role,
+  fullName: user.fullName || '',
+  branch: user.branch || '',
+  year: user.year || '',
+  avatarUrl: user.avatarUrl || '',
+});
+
 // Current user's info (Protected)
 exports.me = async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId).select('studentId email role fullName branch year');
+    const user = await User.findById(req.user.userId).select(PROFILE_FIELDS);
     if (!user) {
       return res.status(401).json({ error: 'Account not found' });
     }
-    res.status(200).json({
-      studentId: user.studentId,
-      email: user.email,
-      role: user.role,
-      fullName: user.fullName || '',
-      branch: user.branch || '',
-      year: user.year || '',
-    });
+    res.status(200).json(profileJson(user));
   } catch (error) {
     res.status(500).json({ error: 'Failed to load account' });
   }
@@ -235,20 +242,61 @@ exports.updateProfile = async (req, res) => {
       req.user.userId,
       { fullName, branch, year },
       { new: true, runValidators: true }
-    ).select('studentId email role fullName branch year');
+    ).select(PROFILE_FIELDS);
 
     if (!user) {
       return res.status(401).json({ error: 'Account not found' });
     }
-    res.status(200).json({
-      studentId: user.studentId,
-      email: user.email,
-      role: user.role,
-      fullName: user.fullName,
-      branch: user.branch,
-      year: user.year,
-    });
+    res.status(200).json(profileJson(user));
   } catch (error) {
     res.status(500).json({ error: 'Failed to update profile' });
+  }
+};
+
+// Upload or replace the profile photo (Protected)
+exports.uploadAvatar = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Please choose an image' });
+    }
+    const user = await User.findById(req.user.userId);
+    if (!user) {
+      return res.status(401).json({ error: 'Account not found' });
+    }
+
+    const result = await uploadAvatarImage(req.file.buffer);
+    const oldPublicId = user.avatarPublicId;
+
+    user.avatarUrl = result.secure_url;
+    user.avatarPublicId = result.public_id;
+    await user.save();
+
+    // Remove the previous photo so old images don't pile up
+    if (oldPublicId) await deleteImage(oldPublicId).catch(() => {});
+
+    res.status(200).json({ avatarUrl: user.avatarUrl });
+  } catch (error) {
+    res.status(500).json({ error: 'Could not upload photo', details: error.message });
+  }
+};
+
+// Remove the profile photo (Protected)
+exports.removeAvatar = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+    if (!user) {
+      return res.status(401).json({ error: 'Account not found' });
+    }
+
+    const oldPublicId = user.avatarPublicId;
+    user.avatarUrl = '';
+    user.avatarPublicId = '';
+    await user.save();
+
+    if (oldPublicId) await deleteImage(oldPublicId).catch(() => {});
+
+    res.status(200).json({ avatarUrl: '' });
+  } catch (error) {
+    res.status(500).json({ error: 'Could not remove photo' });
   }
 };

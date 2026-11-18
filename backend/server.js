@@ -47,7 +47,9 @@ const authLimiter = rateLimit({
 const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 300 });
 
 app.use('/api', apiLimiter);
-app.use('/api/auth', authLimiter);
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
+app.use('/api/auth/google', authLimiter);
 
 // API Routes
 app.use('/api/auth', authRoutes);

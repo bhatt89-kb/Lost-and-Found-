@@ -48,7 +48,7 @@ exports.createReport = async (req, res) => {
 exports.listReports = async (req, res) => {
   try {
     const reports = await Report.find({ status: 'open' })
-      .populate('post_id', 'image_url location_found category description finder_id createdAt')
+      .populate('post_id', 'item_name custody location_found category finder_id createdAt')
       .sort({ createdAt: -1 });
 
     // Skip reports whose post no longer exists

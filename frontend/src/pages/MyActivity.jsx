@@ -151,10 +151,9 @@ export default function MyActivity({ onBack }) {
                 return (
                   <div className="row" key={c._id} style={{ cursor: 'default' }}>
                     <span className={`row-box ${c.status === 'pending' ? 'pending' : ''}`} />
-                    {post.image_url && <img className="row-thumb" src={post.image_url} alt="" loading="lazy" />}
                     <div className="row-main">
                       <div className="row-title">
-                        {post.category || 'Item'} found at <em>{building}</em>
+                        <strong>{post.item_name || post.category || 'Item'}</strong> found at <em>{building}</em>
                       </div>
                       <div className="row-tags">
                         <span className={`tag ${toneFor(post.category)}`}>{post.category || 'Other'}</span>

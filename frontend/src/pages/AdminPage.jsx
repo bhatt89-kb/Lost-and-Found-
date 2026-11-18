@@ -95,12 +95,10 @@ export default function AdminPage({ onBack }) {
                 const { building } = splitLocation(post.location_found);
                 return (
                   <div className="row" key={r._id} style={{ cursor: 'default' }}>
-                    {post.image_url && <img className="row-thumb" src={post.image_url} alt="" loading="lazy" />}
                     <div className="row-main">
                       <div className="row-title">
-                        {post.category || 'Item'} found at <em>{building}</em>
+                        <strong>{post.item_name || post.category || 'Item'}</strong> found at <em>{building}</em>
                       </div>
-                      {post.description && <div className="row-sub">“{post.description}”</div>}
                       <div className="row-tags">
                         <span className="tag red">{REASON_LABELS[r.reason] || r.reason}</span>
                         <span className={`tag ${toneFor(post.category)}`}>{post.category || 'Other'}</span>

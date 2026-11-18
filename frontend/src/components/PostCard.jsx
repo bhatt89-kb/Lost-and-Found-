@@ -9,12 +9,22 @@ const STATUS = {
   resolved: { label: 'Resolved', tone: 'gray' },
 };
 
+const CUSTODY = {
+  with_finder: 'With the finder',
+  security_office: 'At Security Office',
+  left_in_place: 'Left where found',
+};
+
 export function statusMeta(status) {
   return STATUS[status] || STATUS.active;
 }
 
-// One row of the item list — modelled on the Figma "Checklist" row:
-// status box · text with a highlighted entity · inline tags · time pill.
+export function custodyLabel(custody) {
+  return CUSTODY[custody] || CUSTODY.with_finder;
+}
+
+// One row of the item list: status box, object word + place, tags, time pill.
+// No photo and no description are shown, only the object word.
 export default function PostCard({ post, onOpen, onClaimClick, onManageClick, onDeleteClick }) {
   const { user } = useAuth();
   if (!post) return null;
@@ -22,6 +32,7 @@ export default function PostCard({ post, onOpen, onClaimClick, onManageClick, on
   const isOwner = user?.studentId === post.finder_id;
   const { building, floor } = splitLocation(post.location_found);
   const status = statusMeta(post.status);
+  const objectWord = post.item_name || post.category || 'Item'; // old posts fall back to category
   const stop = (fn) => (e) => { e.stopPropagation(); fn(post); };
 
   return (
@@ -36,30 +47,21 @@ export default function PostCard({ post, onOpen, onClaimClick, onManageClick, on
           onOpen(post);
         }
       }}
-      aria-label={`${post.category || 'Item'} found at ${building}. Open details`}
+      aria-label={`${objectWord} found at ${building}. Open details`}
     >
       <span className={`row-box ${post.status === 'resolved' ? 'done' : post.status === 'claim_pending' ? 'pending' : ''}`}>
         {post.status === 'resolved' && <CheckIcon size={14} />}
       </span>
 
-      {post.image_url && <img className="row-thumb" src={post.image_url} alt="" loading="lazy" />}
-
       <div className="row-main">
         <div className="row-title">
-          {post.category || 'Item'} found at <em>{building}</em>
+          <strong>{objectWord}</strong> found at <em>{building}</em>
         </div>
-        {post.description && (
-          <div
-            className="row-sub"
-            style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 420 }}
-          >
-            {post.description}
-          </div>
-        )}
         <div className="row-tags">
           <span className={`tag ${toneFor(post.category)}`}>{post.category || 'Other'}</span>
           <span className={`tag ${status.tone}`}>{status.label}</span>
-          {floor && <span className="row-sub">{floor}</span>}
+          <span className="row-sub">{custodyLabel(post.custody)}</span>
+          {floor && <span className="row-sub">· {floor}</span>}
         </div>
       </div>
 

@@ -17,9 +17,7 @@ export const registerUser = (userData) => API.post('/auth/register', userData);
 export const loginUser = (userData) => API.post('/auth/login', userData);
 export const loginWithGoogle = (credential) => API.post('/auth/google', { credential });
 export const fetchPosts = (params = {}) => API.get('/posts', { params });
-export const createPost = (formData) => API.post('/posts', formData, {
-  headers: { 'Content-Type': 'multipart/form-data' }
-});
+export const createPost = (postData) => API.post('/posts', postData);
 export const submitClaim = (claimData) => API.post('/claims', claimData);
 export const resolveHandover = (handoverData) => API.post('/claims/resolve', handoverData);
 export const fetchClaimsByPost = (postId) => API.get(`/claims/post/${postId}`);
@@ -36,3 +34,11 @@ export const fetchReports = () => API.get('/admin/reports');
 export const dismissReport = (reportId) => API.post(`/admin/reports/${reportId}/dismiss`);
 export const adminDeletePost = (postId) => API.delete(`/admin/posts/${postId}`);
 export const updateProfile = (data) => API.put('/auth/profile', data);
+export const uploadAvatar = (file) => {
+  const formData = new FormData();
+  formData.append('avatar', file);
+  return API.put('/auth/avatar', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+};
+export const removeAvatar = () => API.delete('/auth/avatar');

@@ -166,7 +166,7 @@ exports.getClaimsByPost = async (req, res) => {
 exports.getMyClaims = async (req, res) => {
   try {
     const claims = await Claim.find({ claimant_id: req.user.studentId })
-      .populate('post_id', 'image_url location_found category status createdAt verification_question')
+      .populate('post_id', 'item_name custody location_found category status createdAt verification_question')
       .sort({ createdAt: -1 });
 
     // Skip claims whose post no longer exists

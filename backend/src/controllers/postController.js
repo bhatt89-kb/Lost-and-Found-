@@ -1,51 +1,58 @@
 const Post = require('../models/Post');
 const Claim = require('../models/Claim');
-const { uploadImage, deleteImage } = require('../utils/cloudinary');
+const { deleteImage } = require('../utils/cloudinary');
 
 const CATEGORIES = ['Electronics', 'Keys', 'ID Cards', 'Clothing', 'Other'];
+const CUSTODY = ['with_finder', 'security_office', 'left_in_place'];
 
 // Escape special characters so a search like "(" can't break the regex
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // Create a new found-item post (Protected)
+// No photo and no free-text description: only ONE object word + a private verification question.
 exports.createPost = async (req, res) => {
   try {
     const location_found = (req.body.location_found || '').trim();
     const category = (req.body.category || '').trim();
-    const description = (req.body.description || '').trim();
+    let item_name = (req.body.item_name || '').trim();
+    const custody = (req.body.custody || 'with_finder').trim();
     const verification_question = (req.body.verification_question || '').trim();
 
-    if (!location_found || !category || !verification_question) {
-      return res.status(400).json({ error: 'Location, category and verification question are required' });
+    if (!location_found || !category || !item_name || !verification_question) {
+      return res.status(400).json({ error: 'Object word, location, category and verification question are required' });
     }
     if (!CATEGORIES.includes(category)) {
       return res.status(400).json({ error: 'Invalid category' });
     }
+    if (!CUSTODY.includes(custody)) {
+      return res.status(400).json({ error: 'Invalid "where is it now" option' });
+    }
     if (location_found.length > 100) {
       return res.status(400).json({ error: 'Location is too long (max 100 characters)' });
     }
-    if (description.length > 200) {
-      return res.status(400).json({ error: 'Description is too long (max 200 characters)' });
+    // Exactly one word: letters, numbers or hyphen. No spaces.
+    if (!/^[\p{L}\p{N}-]{2,20}$/u.test(item_name)) {
+      return res.status(400).json({ error: 'Object must be a single word (2-20 letters), e.g. Wallet' });
+    }
+    if (verification_question.length < 8) {
+      return res.status(400).json({ error: 'Verification question is too short' });
     }
     if (verification_question.length > 200) {
       return res.status(400).json({ error: 'Verification question is too long (max 200 characters)' });
     }
-    if (!req.file) {
-      return res.status(400).json({ error: 'Please upload a photo of the item' });
-    }
+
+    // Store it nicely: "wALLET" -> "Wallet"
+    item_name = item_name.charAt(0).toUpperCase() + item_name.slice(1).toLowerCase();
 
     // finder_id always comes from the verified login token, never from the request body
     const finder_id = req.user.studentId;
 
-    const result = await uploadImage(req.file.buffer);
-
     const newPost = new Post({
       finder_id,
-      image_url: result.secure_url,
-      image_public_id: result.public_id,
+      item_name,
+      custody,
       location_found,
       category,
-      description,
       verification_question,
     });
 
@@ -74,7 +81,7 @@ exports.getAllPosts = async (req, res) => {
       query.$or = [
         { location_found: { $regex: safe, $options: 'i' } },
         { verification_question: { $regex: safe, $options: 'i' } },
-        { description: { $regex: safe, $options: 'i' } },
+        { item_name: { $regex: safe, $options: 'i' } },
       ];
     }
 

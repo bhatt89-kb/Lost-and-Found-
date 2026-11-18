@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { fetchMe, updateProfile } from '../services/api';
+import React, { useEffect, useRef, useState } from 'react';
+import { fetchMe, updateProfile, uploadAvatar, removeAvatar } from '../services/api';
 import toast from 'react-hot-toast';
 
 const BRANCHES = [
@@ -17,11 +17,16 @@ const BRANCHES = [
 
 const YEARS = ['1st Year', '2nd Year', '3rd Year', '4th Year', 'Postgraduate / Other'];
 
+const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+
 const readOnlyStyle = { background: '#f7f7f7', color: '#6b6b6b', cursor: 'not-allowed' };
 
-export default function ProfileModal({ isOpen, onClose }) {
+export default function ProfileModal({ isOpen, onClose, onAvatarChange }) {
+  const fileRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState('');
   const [info, setInfo] = useState({ studentId: '', email: '' });
   const [form, setForm] = useState({ fullName: '', branch: '', year: '' });
 
@@ -32,9 +37,12 @@ export default function ProfileModal({ isOpen, onClose }) {
       .then(({ data }) => {
         setInfo({ studentId: data.studentId, email: data.email });
         setForm({ fullName: data.fullName || '', branch: data.branch || '', year: data.year || '' });
+        setAvatarUrl(data.avatarUrl || '');
+        if (onAvatarChange) onAvatarChange(data.avatarUrl || '');
       })
       .catch(() => toast.error('Could not load your profile.'))
       .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -45,6 +53,45 @@ export default function ProfileModal({ isOpen, onClose }) {
     .slice(0, 2)
     .map((w) => w[0].toUpperCase())
     .join('');
+
+  const handleFile = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = ''; // lets the same file be picked again
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please choose an image file.');
+      return;
+    }
+    if (file.size > MAX_PHOTO_BYTES) {
+      toast.error('Image must be under 5 MB.');
+      return;
+    }
+    setPhotoBusy(true);
+    try {
+      const { data } = await uploadAvatar(file);
+      setAvatarUrl(data.avatarUrl);
+      if (onAvatarChange) onAvatarChange(data.avatarUrl);
+      toast.success('Profile photo updated');
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Could not upload photo.');
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    setPhotoBusy(true);
+    try {
+      await removeAvatar();
+      setAvatarUrl('');
+      if (onAvatarChange) onAvatarChange('');
+      toast.success('Profile photo removed');
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Could not remove photo.');
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -79,21 +126,64 @@ export default function ProfileModal({ isOpen, onClose }) {
           <p className="muted-text">Loading…</p>
         ) : (
           <form onSubmit={handleSubmit} className="form">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 4 }}>
-              <div
-                style={{
-                  width: 56, height: 56, borderRadius: '50%', background: '#1c1c1c', color: '#fff',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 20, fontWeight: 600, flex: 'none',
-                }}
-              >
-                {initials}
-              </div>
-              <div>
+            {/* Photo */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 4 }}>
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt="Profile"
+                  style={{
+                    width: 72, height: 72, borderRadius: '50%', objectFit: 'cover', flex: 'none',
+                    opacity: photoBusy ? 0.5 : 1,
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: 72, height: 72, borderRadius: '50%', background: '#1c1c1c', color: '#fff',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 24, fontWeight: 600, flex: 'none', opacity: photoBusy ? 0.5 : 1,
+                  }}
+                >
+                  {initials}
+                </div>
+              )}
+
+              <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: 17, fontWeight: 600 }}>{form.fullName || 'Add your name'}</div>
-                <div className="muted-text">{info.studentId}</div>
+                <div className="muted-text" style={{ marginBottom: 8 }}>{info.studentId}</div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-secondary"
+                    disabled={photoBusy}
+                    onClick={() => fileRef.current && fileRef.current.click()}
+                  >
+                    {photoBusy ? 'Working…' : avatarUrl ? 'Change photo' : 'Upload photo'}
+                  </button>
+                  {avatarUrl && (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-secondary"
+                      disabled={photoBusy}
+                      onClick={handleRemovePhoto}
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={handleFile}
+                  style={{ display: 'none' }}
+                />
               </div>
             </div>
+            <span className="muted-text" style={{ fontSize: 12 }}>
+              JPG, PNG or WebP, up to 5 MB. Photos save instantly.
+            </span>
 
             <div className="field">
               <label className="label" htmlFor="pf-name">Full name</label>
@@ -146,7 +236,7 @@ export default function ProfileModal({ isOpen, onClose }) {
 
             <div className="form-actions">
               <button type="button" onClick={onClose} className="btn btn-secondary">Cancel</button>
-              <button type="submit" disabled={saving} className="btn btn-primary">
+              <button type="submit" disabled={saving || photoBusy} className="btn btn-primary">
                 {saving ? 'Saving…' : 'Save profile'}
               </button>
             </div>

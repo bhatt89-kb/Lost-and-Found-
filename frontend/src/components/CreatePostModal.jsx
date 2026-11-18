@@ -1,26 +1,33 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { createPost } from '../services/api';
 import { campusHierarchy } from '../data/campusData';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
+// Example questions shown as the placeholder, so finders ask something only the owner can answer
+const QUESTION_HINTS = {
+  Electronics: 'e.g. What is the wallpaper / lock-screen on it?',
+  Keys: 'e.g. What keychain or tag is attached?',
+  'ID Cards': 'e.g. Which course or year is printed on it?',
+  Clothing: 'e.g. What brand or size is the tag?',
+  Other: 'e.g. What is written or stuck on it?',
+};
+
+const CUSTODY_OPTIONS = [
+  { value: 'with_finder', label: 'I have it with me' },
+  { value: 'security_office', label: 'Handed to Security Office' },
+  { value: 'left_in_place', label: 'Left where I found it' },
+];
+
 export default function CreatePostModal({ isOpen, onClose, onPostCreated }) {
   const { user } = useAuth();
-  const [finderId, setFinderId] = useState(user?.studentId || '');
   const [selectedBuilding, setSelectedBuilding] = useState(Object.keys(campusHierarchy)[0]);
   const [selectedFloor, setSelectedFloor] = useState(campusHierarchy[Object.keys(campusHierarchy)[0]][0]);
   const [category, setCategory] = useState('Electronics');
-  const [description, setDescription] = useState('');
+  const [itemName, setItemName] = useState('');
+  const [custody, setCustody] = useState('with_finder');
   const [verificationQuestion, setVerificationQuestion] = useState('');
-  const [imageFile, setImageFile] = useState(null);
   const [submitting, setSubmitting] = useState(false);
-
-  // Auto-sync Student ID whenever the logged-in session updates or modal opens
-  useEffect(() => {
-    if (user?.studentId) {
-      setFinderId(user.studentId);
-    }
-  }, [user, isOpen]);
 
   if (!isOpen) return null;
 
@@ -30,31 +37,47 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated }) {
     setSelectedFloor(campusHierarchy[building][0]); // Auto-select first floor of selected building
   };
 
+  // Only letters, numbers and "-" are allowed, so a space can never be typed (one word only)
+  const handleItemNameChange = (e) => {
+    setItemName(e.target.value.replace(/[^\p{L}\p{N}-]/gu, ''));
+  };
+
   const resetForm = () => {
-    setDescription('');
+    setItemName('');
+    setCustody('with_finder');
     setVerificationQuestion('');
-    setImageFile(null);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!imageFile) {
-      toast.error('Please upload a photo of the item.');
+
+    const word = itemName.trim();
+    const question = verificationQuestion.trim();
+
+    if (word.length < 2) {
+      toast.error('Please enter the object as one word, e.g. Wallet.');
       return;
+    }
+    if (question.length < 8) {
+      toast.error('Please write a proper verification question.');
+      return;
+    }
+    // The question must not give the answer away
+    if (question.toLowerCase().includes(word.toLowerCase())) {
+      // allowed, but warn so the finder can rethink
+      toast('Tip: the question should ask for a detail only the owner knows.', { icon: '💡' });
     }
 
     setSubmitting(true);
     try {
-      const data = new FormData();
-      data.append('finder_id', finderId);
-      data.append('location_found', `${selectedBuilding} - ${selectedFloor}`);
-      data.append('category', category);
-      data.append('description', description.trim());
-      data.append('verification_question', verificationQuestion);
-      data.append('image', imageFile);
-
-      await createPost(data);
-      toast.success('Lost item reported successfully!');
+      await createPost({
+        item_name: word,
+        custody,
+        location_found: `${selectedBuilding} - ${selectedFloor}`,
+        category,
+        verification_question: question,
+      });
+      toast.success('Found item reported successfully!');
       resetForm();
       onPostCreated();
       onClose();
@@ -92,12 +115,46 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated }) {
             <input
               id="finderId"
               type="text"
+              readOnly
+              value={user?.studentId || ''}
+              className="input plain"
+              style={{ background: '#f7f7f7', color: '#6b6b6b', cursor: 'not-allowed' }}
+            />
+          </div>
+
+          <div className="field">
+            <label className="label" htmlFor="itemName">Object (one word only)</label>
+            <input
+              id="itemName"
+              type="text"
               required
-              value={finderId}
-              onChange={(e) => setFinderId(e.target.value)}
-              placeholder="e.g. student_101"
+              minLength={2}
+              maxLength={20}
+              autoComplete="off"
+              value={itemName}
+              onChange={handleItemNameChange}
+              placeholder="e.g. Wallet, Earbuds, Umbrella"
               className="input plain"
             />
+            <span className="muted-text" style={{ fontSize: 12 }}>
+              Just the name of the object. No colour, brand or other details, so nobody can pretend to be the owner.
+            </span>
+          </div>
+
+          <div className="field">
+            <label className="label" htmlFor="category">Item Category</label>
+            <select
+              id="category"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="select plain"
+            >
+              <option value="Electronics">Electronics</option>
+              <option value="Keys">Keys</option>
+              <option value="ID Cards">ID Cards / Documents</option>
+              <option value="Clothing">Clothing & Accessories</option>
+              <option value="Other">Other</option>
+            </select>
           </div>
 
           <div className="field">
@@ -129,36 +186,17 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated }) {
           </div>
 
           <div className="field">
-            <label className="label" htmlFor="category">Item Category</label>
+            <label className="label" htmlFor="custody">Where is the item right now?</label>
             <select
-              id="category"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
+              id="custody"
+              value={custody}
+              onChange={(e) => setCustody(e.target.value)}
               className="select plain"
             >
-              <option value="Electronics">Electronics</option>
-              <option value="Keys">Keys</option>
-              <option value="ID Cards">ID Cards / Documents</option>
-              <option value="Clothing">Clothing & Accessories</option>
-              <option value="Other">Other</option>
+              {CUSTODY_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
             </select>
-          </div>
-
-          <div className="field">
-            <label className="label" htmlFor="description">Description (optional)</label>
-            <textarea
-              id="description"
-              rows={2}
-              maxLength={200}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="e.g. Black wireless earbuds in a small case"
-              className="input plain"
-              style={{ resize: 'vertical' }}
-            />
-            <span className="muted-text" style={{ fontSize: 12 }}>
-              {description.length}/200 · Visible to everyone, so don’t include details only the owner would know.
-            </span>
           </div>
 
           <div className="field">
@@ -167,29 +205,21 @@ export default function CreatePostModal({ isOpen, onClose, onPostCreated }) {
               id="question"
               type="text"
               required
+              minLength={8}
               maxLength={200}
               value={verificationQuestion}
               onChange={(e) => setVerificationQuestion(e.target.value)}
-              placeholder="e.g. What color is the phone cover?"
+              placeholder={QUESTION_HINTS[category] || QUESTION_HINTS.Other}
               className="input plain"
             />
-          </div>
-
-          <div className="field">
-            <label className="label" htmlFor="image">Upload Photo</label>
-            <input
-              id="image"
-              type="file"
-              accept="image/*"
-              required
-              onChange={(e) => setImageFile(e.target.files[0])}
-              className="file-input"
-            />
+            <span className="muted-text" style={{ fontSize: 12 }}>
+              Ask about something you can see on the item that only the real owner would know.
+            </span>
           </div>
 
           <div className="note">
             <b>Privacy Notice</b>
-            <p>All submissions are cryptographically hashed and stored with zero-knowledge protocols. Personal identifiers are masked.</p>
+            <p>Only the object word is shown publicly. The photo is not uploaded, and the answer to your question stays private until you review claims.</p>
           </div>
 
           <div className="form-actions">
